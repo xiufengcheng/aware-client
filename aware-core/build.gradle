@@ -57,7 +57,3 @@ dependencies {
     //Comment out for MavenCentral
     phoneWearApp project(path: ':aware-wear', configuration: 'wearRelease')
 }
-
-//Update AWARE's library in Maven Central
-apply from: 'maven-publish.gradle'
-

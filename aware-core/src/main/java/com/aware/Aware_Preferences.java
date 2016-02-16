@@ -19,7 +19,6 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.CheckBoxPreference;
@@ -29,7 +28,6 @@ import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
-import android.provider.Settings;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
@@ -49,7 +47,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Hashtable;
@@ -2277,6 +2274,8 @@ public class Aware_Preferences extends Aware_Activity {
                         http_request = new Https(context, SSLManager.getHTTPS(context, study_url)).dataGET( study_host + "/index.php/plugins/get_plugin/" + package_name, true);
                     } catch (FileNotFoundException e ) {
                         http_request = null;
+                    } catch (Exception e) {
+                        http_request = null;
                     }
                 } else {
                     http_request = new Http(context).dataGET( study_host + "/index.php/plugins/get_plugin/" + package_name, true);
@@ -2354,6 +2353,8 @@ public class Aware_Preferences extends Aware_Activity {
                 try {
                     answer = new Https(getApplicationContext(), SSLManager.getHTTPS(getApplicationContext(), study_url)).dataPOST(study_url, data, true);
                 } catch (FileNotFoundException e ) {
+                    answer = null;
+                } catch (Exception e ) {
                     answer = null;
                 }
             } else {

@@ -321,7 +321,9 @@ public class Aware extends Service {
 	        device_ping.put("ping", String.valueOf(System.currentTimeMillis()));
             try {
                 new Https(awareContext, SSLManager.getHTTPS(getApplicationContext(), "https://api.awareframework.com/index.php")).dataPOST("https://api.awareframework.com/index.php/awaredev/alive", device_ping, true);
-            } catch (FileNotFoundException e) {}
+            }
+            catch (FileNotFoundException e) {}
+            catch (Exception e) {}
 	        return true;
 		}
     }
@@ -1142,7 +1144,9 @@ public class Aware extends Service {
 
                 try {
                     answer = new Https(getApplicationContext(), SSLManager.getHTTPS(getApplicationContext(), study_url)).dataPOST(study_url, data, true);
-                } catch (FileNotFoundException e) { answer = null; }
+                }
+                catch (FileNotFoundException e) { answer = null; }
+                catch (Exception e) { answer = null; }
             } else {
                 answer = new Http(getApplicationContext()).dataPOST(study_url, data, true);
             }
@@ -1252,7 +1256,9 @@ public class Aware extends Service {
             if( protocol.equals("https") ) {
                 try {
                     response = new Https(getApplicationContext(), SSLManager.getHTTPS(getApplicationContext(), study_url)).dataPOST(study_url, data, true);
-                } catch (FileNotFoundException e ) { response = null; }
+                }
+                catch (FileNotFoundException e ) { response = null; }
+                catch (Exception e) { response = null; }
             } else {
                 response = new Http(getApplicationContext()).dataPOST(study_url, data, true);
             }
@@ -1342,9 +1348,9 @@ public class Aware extends Service {
                 if( protocol.equals("https") ) {
                     try {
                         http_request = new Https(getApplicationContext(), SSLManager.getHTTPS(getApplicationContext(), study_url) ).dataGET( study_host + "/index.php/plugins/get_plugin/" + package_name, true);
-                    } catch (FileNotFoundException e ) {
-                        http_request = null;
                     }
+                    catch (FileNotFoundException e ) { http_request = null; }
+                    catch (Exception e) { http_request = null; }
                 } else {
                     http_request = new Http(getApplicationContext()).dataGET( study_host + "/index.php/plugins/get_plugin/" + package_name, true);
                 }
@@ -1406,9 +1412,9 @@ public class Aware extends Service {
             String response;
             try {
                 response = new Https(awareContext, SSLManager.getHTTPS(awareContext, "http://api.awareframework.com/index.php") ).dataGET("https://api.awareframework.com/index.php/awaredev/framework_latest", true);
-            } catch (FileNotFoundException e ) {
-                response = null;
             }
+            catch (FileNotFoundException e ) { response = null; }
+            catch (Exception e) { response = null; }
 	        if( response != null ) {
 	        	try {
 					JSONArray data = new JSONArray(response);
@@ -1508,9 +1514,9 @@ public class Aware extends Service {
                     ApplicationInfo appInfo = mPkgManager.getApplicationInfo( packageName, PackageManager.GET_ACTIVITIES );
                     //Check if this is a package for which we have more info from the server
                     new Plugin_Info_Async().execute(appInfo);
-                } catch( final NameNotFoundException e ) {
-                	e.printStackTrace();
                 }
+                catch( final NameNotFoundException e ) { e.printStackTrace(); }
+                catch (Exception e) { e.printStackTrace();}
             }
             
             if( intent.getAction().equals(Intent.ACTION_PACKAGE_REMOVED) ) {
