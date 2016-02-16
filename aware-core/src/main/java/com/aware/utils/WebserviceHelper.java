@@ -2,19 +2,14 @@
 package com.aware.utils;
 
 import android.app.IntentService;
-import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
-import android.net.wifi.WifiManager;
 import android.text.format.DateUtils;
 import android.util.Log;
 
 import com.aware.Aware;
 import com.aware.Aware_Preferences;
-import com.aware.R;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -139,7 +134,7 @@ public class WebserviceHelper extends IntentService {
 							context_data = getContentResolver().query(CONTENT_URI, null, "timestamp > " + last + " AND double_end_timestamp != 0" + study_condition, null, "timestamp ASC");
 						} else if( exists(columnsStr, "double_esm_user_answer_timestamp") ) {
 							last = remoteData.getJSONObject(0).getLong("double_esm_user_answer_timestamp");
-							context_data = getContentResolver().query(CONTENT_URI, null, "timestamp > " + last + " AND double_esm_user_answer_timestamp != 0" + study_condition, null, "timestamp ASC");
+							context_data = getContentResolver().query(CONTENT_URI, null, "double_esm_user_answer_timestamp > " + last + " AND double_esm_user_answer_timestamp != 0" + study_condition, null, "timestamp ASC");
 						} else {
 							last = remoteData.getJSONObject(0).getLong("timestamp");
 							context_data = getContentResolver().query(CONTENT_URI, null, "timestamp > " + last + study_condition, null, "timestamp ASC");

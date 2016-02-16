@@ -14,15 +14,12 @@ import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
-import android.support.v4.app.DialogFragment;
-import android.support.v4.app.FragmentManager;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 import com.aware.providers.ESM_Provider;
 import com.aware.providers.ESM_Provider.ESM_Data;
 import com.aware.ui.ESM_Queue;
-import com.aware.ui.ESM_UI;
 import com.aware.utils.Aware_Sensor;
 
 import org.json.JSONArray;
@@ -154,6 +151,8 @@ public class ESM extends Aware_Sensor {
     
     public static final int ESM_NOTIFICATION_ID = 777;
 
+    public static final String ESM_ANSWER_FOR_TRIGGER_LOG = "[trigger_timestamp]";
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -204,7 +203,8 @@ public class ESM extends Aware_Sensor {
      */
     public static boolean isESMWaiting( Context c ) {
         boolean is_waiting = false;
-        Cursor esms_waiting = c.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_NEW + " AND " + ESM_Data.EXPIRATION_THRESHOLD + "=0", null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
+        Cursor esms_waiting = c.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_NEW + " AND " + ESM_Data.EXPIRATION_THRESHOLD + "=0"
+                + " and " + ESM_Data.ANSWER + "!='" + ESM.ESM_ANSWER_FOR_TRIGGER_LOG + "'", null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
         if( esms_waiting != null && esms_waiting.moveToFirst() ) {
             is_waiting = (esms_waiting.getCount() > 0);
         }
@@ -238,10 +238,10 @@ public class ESM extends Aware_Sensor {
         mBuilder.setSmallIcon(R.drawable.ic_stat_aware_esm);
         mBuilder.setContentTitle("AWARE");
         mBuilder.setContentText(c.getResources().getText(R.string.aware_esm_questions));
-        mBuilder.setNumber( ESM_Queue.getQueueSize(c) );
+        mBuilder.setNumber(ESM_Queue.getQueueSize(c));
         mBuilder.setOnlyAlertOnce(true); //notify the user only once for the same notification ID
         mBuilder.setOngoing(true);
-        mBuilder.setDefaults( NotificationCompat.DEFAULT_ALL );
+        mBuilder.setDefaults(NotificationCompat.DEFAULT_ALL);
 
         Intent intent_ESM = new Intent( c, ESM_Queue.class );
         intent_ESM.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -250,6 +250,39 @@ public class ESM extends Aware_Sensor {
         mBuilder.setContentIntent(pending_ESM);
 
         mNotificationManager.notify(ESM_NOTIFICATION_ID, mBuilder.build());
+
+    }
+
+    /**
+     * Clear existing ESM
+     * @param c Context
+     */
+    public static void clearExistingESM(Context c){
+        ContentValues rowData = new ContentValues();
+
+        Cursor esm = c.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + " IN (" + ESM.STATUS_NEW + "," + ESM.STATUS_VISIBLE + ")" +
+                " and " + ESM_Data.ANSWER_TIMESTAMP + "= 0", null, null);
+        long answerTimestamp = System.currentTimeMillis();
+        if( esm != null && esm.moveToFirst() ) {
+            //Get timestamp of the first row
+            long timestampFirstRow = esm.getLong(esm.getColumnIndex(ESM_Data.TIMESTAMP));
+
+            //Do not remove questions in the same hour.
+            if (System.currentTimeMillis() - timestampFirstRow > 60 * 1000){
+                do {
+                    int esm_id = esm.getInt(esm.getColumnIndex(ESM_Data._ID));
+                    rowData = new ContentValues();
+                    rowData.put(ESM_Data.ANSWER_TIMESTAMP, answerTimestamp);
+                    rowData.put(ESM_Data.STATUS, ESM.STATUS_EXPIRED);
+                    c.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, ESM_Data._ID + "=" + esm_id, null);
+
+                } while(esm.moveToNext());
+
+                NotificationManager mNotificationManager = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+                mNotificationManager.cancel(ESM_NOTIFICATION_ID);
+            }
+        }
+        if( esm != null && ! esm.isClosed()) esm.close();
     }
 
     //Singleton instance of this service
@@ -310,13 +343,15 @@ public class ESM extends Aware_Sensor {
 
             if ( intent.getAction().equals(ESM.ACTION_AWARE_ESM_DISMISSED) ) {
                 if(Aware.DEBUG) Log.d(TAG,"Rest of ESM Queue is dismissed!");
-                Cursor esm = context.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + " IN (" + ESM.STATUS_NEW + "," + ESM.STATUS_VISIBLE + ")", null, null);
+                Cursor esm = context.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + " IN (" + ESM.STATUS_NEW + "," + ESM.STATUS_VISIBLE + ")"
+                        + " and " + ESM_Data.ANSWER + "!='" + ESM.ESM_ANSWER_FOR_TRIGGER_LOG + "'", null, null);
                 if( esm != null && esm.moveToFirst() ) {
                     do {
+                        int row_esm_id = esm.getInt(esm.getColumnIndex(ESM_Data._ID));
                         ContentValues rowData = new ContentValues();
                         rowData.put(ESM_Data.ANSWER_TIMESTAMP, System.currentTimeMillis());
                         rowData.put(ESM_Data.STATUS, ESM.STATUS_DISMISSED);
-                        context.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, null, null);
+                        context.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, ESM_Data._ID + "=" + row_esm_id, null);
                     } while(esm.moveToNext());
                 }
                 if( esm != null && ! esm.isClosed()) esm.close();
@@ -355,56 +390,67 @@ public class ESM extends Aware_Sensor {
         protected void onHandleIntent(Intent intent) {
             if( intent.getAction().equals(ESM.ACTION_AWARE_QUEUE_ESM) && intent.getStringExtra(EXTRA_ESM) != null && intent.getStringExtra(EXTRA_ESM).length() > 0 ) {
                 try {
+                    //Before adding new questions, store existing questions as expired.
+                    clearExistingESM(getApplicationContext());
                     JSONArray esms = new JSONArray(intent.getStringExtra(EXTRA_ESM));
                     
-                    long esm_timestamp = System.currentTimeMillis();
                     boolean is_persistent = false;
-                    
-                    for( int i = 0; i<esms.length(); i++ ) {
-                        JSONObject esm = esms.getJSONObject(i).getJSONObject(EXTRA_ESM);
-                        
-                        ContentValues rowData = new ContentValues();
-                        rowData.put(ESM_Data.TIMESTAMP, esm_timestamp);
-                        rowData.put(ESM_Data.DEVICE_ID, Aware.getSetting(getApplicationContext(), Aware_Preferences.DEVICE_ID));
-                        rowData.put(ESM_Data.TYPE, esm.optInt(ESM_Data.TYPE));
-                        rowData.put(ESM_Data.TITLE, esm.optString(ESM_Data.TITLE));
-                        rowData.put(ESM_Data.SUBMIT, esm.optString(ESM_Data.SUBMIT));
-                        rowData.put(ESM_Data.INSTRUCTIONS, esm.optString(ESM_Data.INSTRUCTIONS));
-                        rowData.put(ESM_Data.RADIOS, esm.optString(ESM_Data.RADIOS));
-                        rowData.put(ESM_Data.CHECKBOXES, esm.optString(ESM_Data.CHECKBOXES));
-                        rowData.put(ESM_Data.LIKERT_MAX, esm.optInt(ESM_Data.LIKERT_MAX));
-                        rowData.put(ESM_Data.LIKERT_MAX_LABEL, esm.optString(ESM_Data.LIKERT_MAX_LABEL));
-                        rowData.put(ESM_Data.LIKERT_MIN_LABEL, esm.optString(ESM_Data.LIKERT_MIN_LABEL));
-                        rowData.put(ESM_Data.LIKERT_STEP, esm.optDouble(ESM_Data.LIKERT_STEP,0));
-                        rowData.put(ESM_Data.QUICK_ANSWERS, esm.optString(ESM_Data.QUICK_ANSWERS));
-                        rowData.put(ESM_Data.EXPIRATION_THRESHOLD, esm.optInt(ESM_Data.EXPIRATION_THRESHOLD));
-                        rowData.put(ESM_Data.SCALE_MIN, esm.optInt(ESM_Data.SCALE_MIN));
-                        rowData.put(ESM_Data.SCALE_MAX, esm.optInt(ESM_Data.SCALE_MAX));
-                        rowData.put(ESM_Data.SCALE_START, esm.optInt(ESM_Data.SCALE_START));
-                        rowData.put(ESM_Data.SCALE_MAX_LABEL, esm.optString(ESM_Data.SCALE_MAX_LABEL));
-                        rowData.put(ESM_Data.SCALE_MIN_LABEL, esm.optString(ESM_Data.SCALE_MIN_LABEL));
-                        rowData.put(ESM_Data.SCALE_STEP, esm.optInt(ESM_Data.SCALE_STEP));
-                        rowData.put(ESM_Data.STATUS, ESM.STATUS_NEW);
-                        rowData.put(ESM_Data.TRIGGER, esm.optString(ESM_Data.TRIGGER));
-                        
-                        if( rowData.getAsInteger(ESM_Data.EXPIRATION_THRESHOLD) == 0 ) {
-                            is_persistent = true;
+
+                    long esm_timestamp = System.currentTimeMillis();
+
+                    for (int j=0; j < 2; j++){
+                        //Insert duplicated rows to check trigger timestamp (By Anind's request, Feb 5 2016)
+                        for( int i = 0; i<esms.length(); i++ ) {
+                            JSONObject esm = esms.getJSONObject(i).getJSONObject(EXTRA_ESM);
+
+                            ContentValues rowData = new ContentValues();
+                            rowData.put(ESM_Data.TIMESTAMP, esm_timestamp); //fix issue with synching
+                            rowData.put(ESM_Data.DEVICE_ID, Aware.getSetting(getApplicationContext(), Aware_Preferences.DEVICE_ID));
+                            rowData.put(ESM_Data.TYPE, esm.optInt(ESM_Data.TYPE));
+                            rowData.put(ESM_Data.TITLE, esm.optString(ESM_Data.TITLE));
+                            rowData.put(ESM_Data.SUBMIT, esm.optString(ESM_Data.SUBMIT));
+                            rowData.put(ESM_Data.INSTRUCTIONS, esm.optString(ESM_Data.INSTRUCTIONS));
+                            rowData.put(ESM_Data.RADIOS, esm.optString(ESM_Data.RADIOS));
+                            rowData.put(ESM_Data.CHECKBOXES, esm.optString(ESM_Data.CHECKBOXES));
+                            rowData.put(ESM_Data.LIKERT_MAX, esm.optInt(ESM_Data.LIKERT_MAX));
+                            rowData.put(ESM_Data.LIKERT_MAX_LABEL, esm.optString(ESM_Data.LIKERT_MAX_LABEL));
+                            rowData.put(ESM_Data.LIKERT_MIN_LABEL, esm.optString(ESM_Data.LIKERT_MIN_LABEL));
+                            rowData.put(ESM_Data.LIKERT_STEP, esm.optDouble(ESM_Data.LIKERT_STEP, 0));
+                            rowData.put(ESM_Data.QUICK_ANSWERS, esm.optString(ESM_Data.QUICK_ANSWERS));
+                            rowData.put(ESM_Data.EXPIRATION_THRESHOLD, esm.optInt(ESM_Data.EXPIRATION_THRESHOLD));
+                            rowData.put(ESM_Data.SCALE_MIN, esm.optInt(ESM_Data.SCALE_MIN));
+                            rowData.put(ESM_Data.SCALE_MAX, esm.optInt(ESM_Data.SCALE_MAX));
+                            rowData.put(ESM_Data.SCALE_START, esm.optInt(ESM_Data.SCALE_START));
+                            rowData.put(ESM_Data.SCALE_MAX_LABEL, esm.optString(ESM_Data.SCALE_MAX_LABEL));
+                            rowData.put(ESM_Data.SCALE_MIN_LABEL, esm.optString(ESM_Data.SCALE_MIN_LABEL));
+                            rowData.put(ESM_Data.SCALE_STEP, esm.optInt(ESM_Data.SCALE_STEP));
+                            rowData.put(ESM_Data.STATUS, ESM.STATUS_NEW);
+                            rowData.put(ESM_Data.TRIGGER, esm.optString(ESM_Data.TRIGGER));
+
+                            if (j == 0){
+                                rowData.put(ESM_Data.ANSWER_TIMESTAMP, System.currentTimeMillis());
+                                rowData.put(ESM_Data.ANSWER,ESM_ANSWER_FOR_TRIGGER_LOG );
+                            }
+
+                            if( rowData.getAsInteger(ESM_Data.EXPIRATION_THRESHOLD) == 0 ) {
+                                is_persistent = true;
+                            }
+
+                            try {
+                                getContentResolver().insert(ESM_Data.CONTENT_URI, rowData);
+                                if( Aware.DEBUG ) Log.d(TAG, "ESM: "+ rowData.toString() );
+                            }catch( SQLiteException e ) {
+                                if(Aware.DEBUG) Log.d(TAG,e.getMessage());
+                            }
                         }
-                        
-                        try {
-                            getContentResolver().insert(ESM_Data.CONTENT_URI, rowData);
-                            if( Aware.DEBUG ) Log.d(TAG, "ESM: "+ rowData.toString() );
-                        }catch( SQLiteException e ) {
-                            if(Aware.DEBUG) Log.d(TAG,e.getMessage());
+
+                        if ( is_persistent ) {
+                            notifyESM(getApplicationContext());
+                        } else {
+                            Intent intent_ESM = new Intent( getApplicationContext(), ESM_Queue.class );
+                            intent_ESM.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent_ESM);
                         }
-                    }
-                    
-                    if ( is_persistent ) {
-                        notifyESM(getApplicationContext());
-                    } else {
-                        Intent intent_ESM = new Intent( getApplicationContext(), ESM_Queue.class );
-                        intent_ESM.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent_ESM);
                     }
                 } catch (JSONException e) {
                     e.printStackTrace();                    

@@ -2,24 +2,18 @@ package com.aware.ui;
 
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.os.Bundle;
-import android.os.PowerManager;
-import android.os.Vibrator;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
-import android.util.Log;
-import android.view.WindowManager;
 
 import com.aware.Aware;
 import com.aware.Aware_Preferences;
 import com.aware.ESM;
-import com.aware.Screen;
 import com.aware.providers.ESM_Provider.ESM_Data;
 
 /**
@@ -80,7 +74,8 @@ public class ESM_Queue extends FragmentActivity {
      */
     public static int getQueueSize(Context c) {
         int size = 0;
-        Cursor onqueue = c.getContentResolver().query(ESM_Data.CONTENT_URI,null, ESM_Data.STATUS + " IN (" + ESM.STATUS_VISIBLE +","+ ESM.STATUS_NEW + ")", null, null);
+        Cursor onqueue = c.getContentResolver().query(ESM_Data.CONTENT_URI,null, ESM_Data.STATUS + " IN (" + ESM.STATUS_VISIBLE +","+ ESM.STATUS_NEW + ")"
+                + " and " + ESM_Data.ANSWER + "!='" + ESM.ESM_ANSWER_FOR_TRIGGER_LOG + "'", null, null);
         if( onqueue != null && onqueue.moveToFirst() ) {
             size = onqueue.getCount();
         }

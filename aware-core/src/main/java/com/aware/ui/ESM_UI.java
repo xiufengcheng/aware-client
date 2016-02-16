@@ -2,7 +2,6 @@ package com.aware.ui;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.NotificationManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -69,11 +68,14 @@ public class ESM_UI extends DialogFragment {
 		TAG = Aware.getSetting(getActivity().getApplicationContext(),Aware_Preferences.DEBUG_TAG).length()>0?Aware.getSetting(getActivity().getApplicationContext(), Aware_Preferences.DEBUG_TAG):TAG;
 
         Cursor visible_esm;
-        if( ESM.isESMVisible(getActivity().getApplicationContext()) ) {
-            visible_esm = getActivity().getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_VISIBLE, null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
+		if( ESM.isESMVisible(getActivity().getApplicationContext()) ) {
+            //visible_esm = getActivity().getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_VISIBLE, null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
+			visible_esm = getActivity().getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_VISIBLE + " and " + ESM_Data.ANSWER + "!='" + ESM.ESM_ANSWER_FOR_TRIGGER_LOG + "'" , null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
         } else {
-            visible_esm = getActivity().getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_NEW, null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
+			//visible_esm = getActivity().getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_NEW, null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
+			visible_esm = getActivity().getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + "=" + ESM.STATUS_NEW + " and " + ESM_Data.ANSWER + "!='" + ESM.ESM_ANSWER_FOR_TRIGGER_LOG + "'", null, ESM_Data.TIMESTAMP + " ASC LIMIT 1");
         }
+
         if( visible_esm != null && visible_esm.moveToFirst() ) {
         	esm_id = visible_esm.getInt(visible_esm.getColumnIndex(ESM_Data._ID));
 
@@ -267,53 +269,58 @@ public class ESM_UI extends DialogFragment {
 
 	                    for(int i=0; i<checks.length(); i++) {
 	                        final CheckBox checked = new CheckBox(getActivity());
+							final int current_position = i;
 	                        checked.setText(" " + checks.getString(i));
 	                        checked.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 	                            @Override
 	                            public void onCheckedChanged(final CompoundButton buttonView, boolean isChecked) {
-                                    if( isChecked ) {
-	                                    if( buttonView.getText().equals(getResources().getString(R.string.aware_esm_other)) ) {
-	                                        checked.setOnClickListener(new View.OnClickListener() {
-	                                            @Override
-	                                            public void onClick(View v) {
-	                                            	final Dialog editOther = new Dialog(getActivity());
-	        	                                	editOther.setTitle(getResources().getString(R.string.aware_esm_other_follow));
-	        	                                	editOther.getWindow().setGravity(Gravity.TOP);
-	        	                                	editOther.getWindow().setLayout(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+									try{
+										if( isChecked ) {
+											if( checks.getString(current_position).equals(getResources().getString(R.string.aware_esm_other)) ) {
+												checked.setOnClickListener(new View.OnClickListener() {
+													@Override
+													public void onClick(View v) {
+														final Dialog editOther = new Dialog(getActivity());
+														editOther.setTitle(getResources().getString(R.string.aware_esm_other_follow));
+														editOther.getWindow().setGravity(Gravity.TOP);
+														editOther.getWindow().setLayout(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
 
-	                                            	LinearLayout editor = new LinearLayout(getActivity());
-	                                                editor.setOrientation(LinearLayout.VERTICAL);
-	                                                editOther.setContentView(editor);
-	                                                editOther.show();
+														LinearLayout editor = new LinearLayout(getActivity());
+														editor.setOrientation(LinearLayout.VERTICAL);
+														editOther.setContentView(editor);
+														editOther.show();
 
-	                                                final EditText otherText = new EditText(getActivity());
-													otherText.setHint(getResources().getString(R.string.aware_esm_other_follow));
-	                                                editor.addView(otherText);
-													otherText.requestFocus();
-                                                    editOther.getWindow().setSoftInputMode(LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+														final EditText otherText = new EditText(getActivity());
+														otherText.setHint(getResources().getString(R.string.aware_esm_other_follow));
+														editor.addView(otherText);
+														otherText.requestFocus();
+														editOther.getWindow().setSoftInputMode(LayoutParams.SOFT_INPUT_STATE_VISIBLE);
 
-	                                                Button confirm = new Button(getActivity());
-	                                                confirm.setText("OK");
-	                                                confirm.setOnClickListener(new View.OnClickListener() {
-	                                                    @Override
-	                                                    public void onClick(View v) {
-	                                                        if( otherText.length() > 0 ) {
-	                                                        	selected_options.remove(buttonView.getText().toString());
-	                                                            checked.setText(otherText.getText());
-	                                                            selected_options.add(otherText.getText().toString());
-	                                                        }
-	                                                        editOther.dismiss();
-	                                                    }
-	                                                });
-	                                                editor.addView(confirm);
-	                                            }
-	                                        });
-	                                    }else {
-	                                    	selected_options.add(buttonView.getText().toString());
-	                                    }
-	                                } else {
-	                                    selected_options.remove(buttonView.getText().toString());
-	                                }
+														Button confirm = new Button(getActivity());
+														confirm.setText("OK");
+														confirm.setOnClickListener(new View.OnClickListener() {
+															@Override
+															public void onClick(View v) {
+																if( otherText.length() > 0 ) {
+																	selected_options.remove(buttonView.getText().toString());
+																	checked.setText(otherText.getText());
+																	selected_options.add(otherText.getText().toString());
+																}
+																editOther.dismiss();
+															}
+														});
+														editor.addView(confirm);
+													}
+												});
+											}else {
+												selected_options.add(buttonView.getText().toString());
+											}
+										} else {
+											selected_options.remove(buttonView.getText().toString());
+										}
+									} catch (JSONException e) {
+									e.printStackTrace();
+									}
 	                            }
 	                        });
 	                        checkboxes.addView(checked);
@@ -416,15 +423,16 @@ public class ESM_UI extends DialogFragment {
                     final int step_size = visible_esm.getInt(visible_esm.getColumnIndex(ESM_Data.SCALE_STEP));
 
                     final TextView current_slider_value = (TextView) layout.findViewById(R.id.esm_slider_value);
-					current_slider_value.setText( "" + selected_scale_progress);
+					current_slider_value.setText("" + selected_scale_progress);
 
 					final SeekBar seekBar = (SeekBar) layout.findViewById(R.id.esm_scale);
                     seekBar.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-                            if( expires_seconds > 0 && expire_monitor != null ) expire_monitor.cancel(true);
-                        }
-                    });
+						@Override
+						public void onClick(View v) {
+							if (expires_seconds > 0 && expire_monitor != null)
+								expire_monitor.cancel(true);
+						}
+					});
 
                     seekBar.incrementProgressBy(step_size);
 
@@ -435,41 +443,50 @@ public class ESM_UI extends DialogFragment {
                         seekBar.setMax( max_value*2 );
                         seekBar.setProgress( max_value ); //move handle to center value
                     }
-                    current_slider_value.setText( "" + selected_scale_progress );
+                    current_slider_value.setText("" + selected_scale_progress);
 
-                    seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                        @Override
-                        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                            if( fromUser ) {
-                                if( min_value < 0 ) {
-                                    progress -= max_value;
-                                }
+					final CheckBox esm_scale_na = (CheckBox) layout.findViewById(R.id.esm_scale_na);
+					esm_scale_na.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+						@Override
+						public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+							seekBar.setEnabled(!isChecked);
+						}
+					});
 
-                                progress /= step_size;
-                                progress *= step_size;
+					seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+						@Override
+						public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
 
-                                selected_scale_progress = progress;
+							if (fromUser) {
+								if (min_value < 0) {
+									progress -= max_value;
+								}
 
-                                if( selected_scale_progress < min_value ) {
-                                    selected_scale_progress = min_value;
-                                } else if( selected_scale_progress > max_value ) {
-                                    selected_scale_progress = max_value;
-                                }
+								progress /= step_size;
+								progress *= step_size;
 
-                                current_slider_value.setText( "" + selected_scale_progress );
-                            }
-                        }
+								selected_scale_progress = progress;
 
-                        @Override
-                        public void onStartTrackingTouch(SeekBar seekBar) {
-                            current_slider_value.setText( "" + selected_scale_progress );
-                        }
+								if (selected_scale_progress < min_value) {
+									selected_scale_progress = min_value;
+								} else if (selected_scale_progress > max_value) {
+									selected_scale_progress = max_value;
+								}
 
-                        @Override
-                        public void onStopTrackingTouch(SeekBar seekBar) {
-                            current_slider_value.setText( "" + selected_scale_progress );
-                        }
-                    });
+								current_slider_value.setText("" + selected_scale_progress);
+							}
+						}
+
+						@Override
+						public void onStartTrackingTouch(SeekBar seekBar) {
+							current_slider_value.setText("" + selected_scale_progress);
+						}
+
+						@Override
+						public void onStopTrackingTouch(SeekBar seekBar) {
+							current_slider_value.setText("" + selected_scale_progress);
+						}
+					});
 
 					TextView min_scale_label = (TextView) layout.findViewById(R.id.esm_min);
 					min_scale_label.setText(visible_esm.getString(visible_esm.getColumnIndex(ESM_Data.SCALE_MIN_LABEL)));
@@ -494,7 +511,11 @@ public class ESM_UI extends DialogFragment {
 
 							ContentValues rowData = new ContentValues();
 							rowData.put(ESM_Data.ANSWER_TIMESTAMP, System.currentTimeMillis());
-							rowData.put(ESM_Data.ANSWER, selected_scale_progress );
+							if (esm_scale_na.isChecked()){
+								rowData.put(ESM_Data.ANSWER, "NA" );
+							}else{
+								rowData.put(ESM_Data.ANSWER, selected_scale_progress);
+							}
 							rowData.put(ESM_Data.STATUS, ESM.STATUS_ANSWERED);
 
 							sContext.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, ESM_Data._ID + "=" + esm_id, null);
@@ -571,7 +592,7 @@ public class ESM_UI extends DialogFragment {
 	public void onCancel(DialogInterface dialog) {
 		super.onCancel(dialog);
 		if( expires_seconds > 0 && expire_monitor != null ) expire_monitor.cancel(true);
-		dismissESM();
+			dismissESM();
 	}
 
 	@Override
@@ -583,13 +604,13 @@ public class ESM_UI extends DialogFragment {
 	@Override
 	public void onPause() {
 		super.onPause();
-
-        if( ESM.isESMVisible(getActivity().getApplicationContext()) ) {
-            if( Aware.DEBUG ) Log.d(TAG, "ESM was visible, go back to notification bar");
+		if( ESM.isESMVisible(getActivity().getApplicationContext()) ) {
+			if( Aware.DEBUG ) Log.d(TAG, "ESM was visible but not answered, go back to notification bar");
 
             //Revert to NEW state
             ContentValues rowData = new ContentValues();
-            rowData.put(ESM_Data.ANSWER_TIMESTAMP, System.currentTimeMillis());
+			//If you put current time into ESM_Data.ANSWER_TIMESTAMP,
+            rowData.put(ESM_Data.ANSWER_TIMESTAMP, 0);
             rowData.put(ESM_Data.STATUS, ESM.STATUS_NEW);
             sContext.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, ESM_Data._ID + "=" + esm_id, null);
 
@@ -610,13 +631,15 @@ public class ESM_UI extends DialogFragment {
         rowData.put(ESM_Data.STATUS, ESM.STATUS_DISMISSED);
         sContext.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, ESM_Data._ID + "=" + esm_id, null);
 
-        Cursor esm = sContext.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + " IN (" + ESM.STATUS_NEW + "," + ESM.STATUS_VISIBLE + ")", null, null);
+        Cursor esm = sContext.getContentResolver().query(ESM_Data.CONTENT_URI, null, ESM_Data.STATUS + " IN (" + ESM.STATUS_NEW + "," + ESM.STATUS_VISIBLE + ")"
+				+ " and " + ESM_Data.ANSWER + "!='" + ESM.ESM_ANSWER_FOR_TRIGGER_LOG + "'", null, null);
         if( esm != null && esm.moveToFirst() ) {
             do {
-                rowData = new ContentValues();
+				int row_esm_id = esm.getInt(esm.getColumnIndex(ESM_Data._ID));
+				rowData = new ContentValues();
                 rowData.put(ESM_Data.ANSWER_TIMESTAMP, System.currentTimeMillis());
                 rowData.put(ESM_Data.STATUS, ESM.STATUS_DISMISSED);
-                sContext.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, null, null);
+                sContext.getContentResolver().update(ESM_Data.CONTENT_URI, rowData, ESM_Data._ID + "=" + row_esm_id, null);
             } while(esm.moveToNext());
         }
         if( esm != null && ! esm.isClosed()) esm.close();
