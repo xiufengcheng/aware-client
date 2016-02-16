@@ -17,7 +17,6 @@ import com.koushikdutta.ion.Ion;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -60,6 +59,8 @@ public class DownloadPluginService extends IntentService {
             try {
                 response = new Https(getApplicationContext(), SSLManager.getHTTPS(getApplicationContext(), study_url)).dataGET( study_host + "/index.php/plugins/get_plugin/" + package_name, true);
             } catch (FileNotFoundException e ) {
+                response = null;
+            } catch (Exception e) {
                 response = null;
             }
         } else {
