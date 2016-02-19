@@ -43,6 +43,7 @@ import android.widget.LinearLayout.LayoutParams;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
+import com.aware.providers.Applications_Provider;
 import com.aware.providers.Aware_Provider;
 import com.aware.providers.Aware_Provider.Aware_Device;
 import com.aware.providers.Aware_Provider.Aware_Plugins;
@@ -147,6 +148,11 @@ public class Aware extends Service {
      */
     public static final String ACTION_AWARE_CHECK_UPDATE = "ACTION_AWARE_CHECK_UPDATE";
 
+    /**
+     * Update the study configuration
+     */
+    public static final String ACTION_AWARE_UPDATE_STUDY_CONFIGURATION = "ACTION_AWARE_UPDATE_STUDY_CONFIGURATION";
+
     public static String STUDY_ID = "study_id";
     public static String STUDY_START = "study_start";
 
@@ -242,6 +248,7 @@ public class Aware extends Service {
         filter.addAction(Aware.ACTION_QUIT_STUDY);
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
         filter.addAction(Aware.ACTION_AWARE_CHECK_UPDATE);
+        filter.addAction(Aware.ACTION_AWARE_UPDATE_STUDY_CONFIGURATION);
         awareContext.registerReceiver(aware_BR, filter);
 
         Intent synchronise = new Intent(Aware.ACTION_AWARE_SYNC_DATA);
@@ -461,6 +468,9 @@ public class Aware extends Service {
                 }
             }
 
+            // Create a new schedule to keep the latest study configuration
+            addStudyConfigurationUpdateSchedule();
+
         } else { //Turn off all enabled plugins and services
 
             stopAllServices();
@@ -482,6 +492,7 @@ public class Aware extends Service {
                 if( Aware.DEBUG ) Log.w(TAG,"AWARE plugins disabled...");
             }
         }
+
         return START_STICKY;
     }
     
@@ -1114,8 +1125,100 @@ public class Aware extends Service {
             }
         }
 
+        try {
+            PackageManager manager = c.getPackageManager();
+            PackageInfo info = manager.getPackageInfo(c.getPackageName(), 0);
+            String version = info.versionName;
+            ContentValues rowData = new ContentValues();
+            rowData.put(Applications_Provider.Applications_History.TIMESTAMP, System.currentTimeMillis());
+            rowData.put(Applications_Provider.Applications_History.DEVICE_ID, Aware.getSetting(c, Aware_Preferences.DEVICE_ID));
+            rowData.put(Applications_Provider.Applications_History.PACKAGE_NAME, "com.aware");
+            rowData.put(Applications_Provider.Applications_History.APPLICATION_NAME, "Aware Version[" + version + "]: Updated the latest study configuration(" + configs.toString() +")");
+            rowData.put(Applications_Provider.Applications_History.PROCESS_IMPORTANCE, 0);
+            rowData.put(Applications_Provider.Applications_History.PROCESS_ID, 0);
+            rowData.put(Applications_Provider.Applications_History.END_TIMESTAMP, System.currentTimeMillis());
+            rowData.put(Applications_Provider.Applications_History.IS_SYSTEM_APP, 0);
+            c.getContentResolver().insert(Applications_Provider.Applications_History.CONTENT_URI, rowData);
+        }catch( SQLiteException e ) {
+            if(Aware.DEBUG) Log.e(TAG, e.getMessage());
+        }catch( SQLException e ) {
+            if(Aware.DEBUG) Log.e(TAG,e.getMessage());
+        }catch( NameNotFoundException e){
+            if(Aware.DEBUG) Log.e(TAG,e.getMessage());
+        }
+
         Intent apply = new Intent( Aware.ACTION_AWARE_REFRESH);
         c.sendBroadcast(apply);
+    }
+
+    private void addStudyConfigurationUpdateSchedule(){
+        try {
+            //Schedule fetching the latest study configuration from the server every day at 1AM and 1PM
+            Scheduler.Schedule questionSchedule = new Scheduler.Schedule("study_configuration_updater");
+            questionSchedule.addHour(1);
+            questionSchedule.addHour(13);
+            questionSchedule.setActionType(Scheduler.ACTION_TYPE_BROADCAST);
+            questionSchedule.setActionClass(ACTION_AWARE_UPDATE_STUDY_CONFIGURATION);
+            Scheduler.saveSchedule(this, questionSchedule);
+
+        } catch (JSONException e) {}
+    }
+
+    /**
+     * Pull the latest study configuration from the server.
+     */
+    private static class refreshStudyConfiguration extends AsyncTask<Void, Void, Boolean> {
+
+        private JSONArray mConfig = null;
+        private Context context;
+
+        public refreshStudyConfiguration(Context context) {
+            this.context = context;
+        }
+
+        @Override
+        protected Boolean doInBackground(Void... voids) {
+            String study_url = Aware.getSetting(awareContext, Aware_Preferences.WEBSERVICE_SERVER);
+            Hashtable<String, String> data = new Hashtable<>();
+            data.put(Aware_Preferences.DEVICE_ID, Aware.getSetting(context, Aware_Preferences.DEVICE_ID));
+
+            String protocol = study_url.substring(0, study_url.indexOf(":"));
+
+            String answer;
+            if( protocol.equals("https") ) {
+                try {
+                    answer = new Https(context, SSLManager.getHTTPS(context, study_url)).dataPOST(study_url, data, true);
+                }
+                catch (FileNotFoundException e) { answer = null; }
+                catch (Exception e) { answer = null; }
+            } else {
+                answer = new Http(context).dataPOST(study_url, data, true);
+            }
+
+            if( answer != null ) {
+                try {
+                    JSONArray configs = new JSONArray(answer);
+                    if (configs.getJSONObject(0).has("message")) {
+                        if(Aware.DEBUG) Log.d(TAG, "This study is no longer available.");
+                    }else{
+                        mConfig = configs;
+                    }
+                }
+                catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean result) {
+            super.onPostExecute(result);
+
+            if (mConfig != null){
+                tweakSettings(context, mConfig);
+            }
+        }
     }
 
     /**
@@ -1746,6 +1849,10 @@ public class Aware extends Service {
             if( intent.getAction().equals(Aware.ACTION_AWARE_REFRESH)) {
                 Intent refresh = new Intent(context, com.aware.Aware.class);
                 context.startService(refresh);
+            }
+
+            if (intent.getAction().equals(Aware.ACTION_AWARE_UPDATE_STUDY_CONFIGURATION)){
+                new refreshStudyConfiguration(context).execute();
             }
         }
     }
