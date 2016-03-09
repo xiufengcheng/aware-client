@@ -4,6 +4,8 @@ package com.aware.utils;
 import android.app.IntentService;
 import android.content.Intent;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.text.format.DateUtils;
 import android.util.Log;
@@ -59,6 +61,18 @@ public class WebserviceHelper extends IntentService {
 		Uri CONTENT_URI = Uri.parse(intent.getStringExtra(EXTRA_CONTENT_URI));
 
 		if( intent.getAction().equals(ACTION_AWARE_WEBSERVICE_SYNC_TABLE) ) {
+
+			//Check if we are supposed to sync over WiFi only
+			if( Aware.getSetting(getApplicationContext(), Aware_Preferences.WEBSERVICE_WIFI_ONLY).equals("true") ) {
+				ConnectivityManager connManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+				NetworkInfo activeNetwork = connManager.getActiveNetworkInfo();
+				if (activeNetwork != null && activeNetwork.getType() == ConnectivityManager.TYPE_WIFI && activeNetwork.isConnected()) {
+					if (Aware.DEBUG) Log.d(Aware.TAG, "Synching data only over Wi-Fi and internet is available, let's sync!");
+				} else {
+					if (Aware.DEBUG) Log.d(Aware.TAG, "Synching data only over Wi-Fi and no internet. Will try again later...");
+					return;
+				}
+			}
 
             if( Aware.DEBUG ) Log.d(Aware.TAG, "Synching data..." + DATABASE_TABLE);
 
