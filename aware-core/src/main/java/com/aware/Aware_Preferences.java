@@ -146,6 +146,11 @@ public class Aware_Preferences extends Aware_Activity {
      * Activate/deactivate battery log (boolean)
      */
     public static final String STATUS_BATTERY = "status_battery";
+
+    /**
+     * pluggedin status check for upload (boolean)
+     */
+  //  public static final String STATUS_BATTERY_PLUGGEDIN = "status_battery_pluggedIn";
     
     /**
      * Activate/deactivate bluetooth scan log (boolean)
