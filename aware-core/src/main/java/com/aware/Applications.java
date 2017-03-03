@@ -283,6 +283,10 @@ public class Applications extends AccessibilityService {
         filter.addAction(Aware.ACTION_AWARE_CLEAR_DATA);
         registerReceiver(awareMonitor, filter);
 
+        //Boot-up AWARE framework
+        Intent aware = new Intent(this, Aware.class);
+        startService(aware);
+
         Aware.debug(this, "created: " + getClass().getName() + " package: " + getPackageName());
     }
 
@@ -341,12 +345,6 @@ public class Applications extends AccessibilityService {
             info.packageNames = null;
             this.setServiceInfo(info);
         }
-
-        //Boot-up AWARE framework
-        Intent aware = new Intent(this, Aware.class);
-        startService(aware);
-
-        Aware.startAWARE(this);
 
         DEBUG = Aware.getSetting(this, Aware_Preferences.DEBUG_FLAG).equals("true");
     }

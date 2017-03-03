@@ -2,6 +2,8 @@
 package com.aware;
 
 import android.Manifest;
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.app.ActivityManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -9,6 +11,7 @@ import android.app.Service;
 import android.app.UiModeManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -58,6 +61,7 @@ import com.aware.providers.Battery_Provider;
 import com.aware.providers.Scheduler_Provider;
 import com.aware.ui.PermissionsHandler;
 import com.aware.utils.Aware_Plugin;
+import com.aware.utils.Aware_Sync;
 import com.aware.utils.DownloadPluginService;
 import com.aware.utils.Http;
 import com.aware.utils.Https;
@@ -202,6 +206,8 @@ public class Aware extends Service {
 
     private AsyncStudyCheck studyCheck = null;
 
+    private Account mAwareSyncAccount;
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -234,6 +240,13 @@ public class Aware extends Service {
         if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
             stopSelf();
             return;
+        }
+
+        mAwareSyncAccount = new Account(Aware_Sync.ACCOUNT, Aware_Sync.ACCOUNT_TYPE);
+        AccountManager accountManager = (AccountManager) getSystemService(ACCOUNT_SERVICE);
+        if (accountManager.getAccountsByType(Aware_Sync.ACCOUNT_TYPE).length == 0) {
+            accountManager.addAccountExplicitly(mAwareSyncAccount, null, null);
+            Log.d(Aware.TAG, "AWARE SyncAdapter initialised");
         }
 
         //If Android M+ and client or standalone, ask to be added to the whilelist of Doze
@@ -454,7 +467,7 @@ public class Aware extends Service {
                 Intent permissions = new Intent(this, PermissionsHandler.class);
                 permissions.putExtra(PermissionsHandler.EXTRA_REQUIRED_PERMISSIONS, REQUIRED_PERMISSIONS);
                 permissions.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                permissions.putExtra(PermissionsHandler.EXTRA_REDIRECT_SERVICE, getPackageName() + "/" + getClass().getName()); //restarts core once permissions are accepted
+//                permissions.putExtra(PermissionsHandler.EXTRA_REDIRECT_SERVICE, getPackageName() + "/" + getClass().getName()); //restarts core once permissions are accepted
                 startActivity(permissions);
 
                 return START_STICKY;
@@ -601,6 +614,13 @@ public class Aware extends Service {
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
+
+                    ContentResolver.addPeriodicSync(mAwareSyncAccount, Aware_Provider.AUTHORITY, Bundle.EMPTY, frequency_webservice * 60); //seconds
+
+                    Bundle syncBundle = new Bundle();
+                    syncBundle.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
+                    syncBundle.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+                    ContentResolver.requestSync(mAwareSyncAccount, Aware_Provider.AUTHORITY, syncBundle);
                 }
             }
 

@@ -12,6 +12,12 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Adding support to SyncAdapter to sync data to the AWARE server -->
+    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+
     <application
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/aware_ssl_config">
@@ -40,9 +46,18 @@
         <service
             android:name="com.aware.utils.Scheduler"
             android:exported="true" />
+
         <service
             android:name="com.aware.Aware"
-            android:exported="true" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accounts.AccountAuthenticator" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accounts.AccountAuthenticator"
+                android:resource="@xml/authenticator" />
+        </service>
+
         <service
             android:name="com.aware.Aware$JoinStudy"
             android:exported="true" />
@@ -159,6 +174,18 @@
         <service
             android:name="com.aware.SignificantMotion"
             android:exported="true" />
+
+        <service
+            android:name="com.aware.utils.Aware_Sync"
+            android:exported="true"
+            android:process=":sync">
+            <intent-filter>
+                <action android:name="android.content.SyncAdapter" />
+            </intent-filter>
+            <meta-data
+                android:name="android.content.SyncAdapter"
+                android:resource="@xml/syncadapter" />
+        </service>
 
         <!-- BroadcastReceivers -->
 
